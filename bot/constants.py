@@ -1,0 +1,29 @@
+BTN_ADD = "Добавить соответствие"
+BTN_UPDATE = "Обновить соответствие"
+BTN_DELETE = "Удалить записи"
+BTN_DELETE_ALIASES = "Удалить конкретные артикулы"
+BTN_INGEST = "Загрузить файл с артикулами"
+BTN_SEARCH = "Поиск STAL по аналогу"
+BTN_SEARCH_BY_STAL = "Поиск аналогов по STAL"
+BTN_INGEST_DIRECT = "Прямой поиск аналогов"
+BTN_INGEST_DEEP = "Глубокое извлечение"
+BTN_MENU = "В меню"
+BTN_INGEST_APPLY = "Применить"
+BTN_INGEST_CANCEL = "Отменить"
+
+STATE_MENU = 0
+STATE_ADD_STAL = 1
+STATE_ADD_ALIASES = 2
+STATE_ADD_SOURCE = 3
+STATE_UPDATE_STAL = 4
+STATE_UPDATE_ALIASES = 5
+STATE_UPDATE_SOURCE = 6
+STATE_DELETE_CODES = 7
+STATE_DELETE_ALIAS_STAL = 8
+STATE_DELETE_ALIAS_VALUES = 9
+STATE_INGEST_WAIT_FILE = 10
+STATE_SEARCH_ARTICLE = 11
+STATE_SEARCH_STAL_ARTICLE = 12
+STATE_INGEST_CONFIRM = 13
+STATE_INGEST_SELECT_MODE = 14
+

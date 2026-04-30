@@ -1,0 +1,4 @@
+httpx
+openpyxl
+pydantic-settings
+python-telegram-bot
