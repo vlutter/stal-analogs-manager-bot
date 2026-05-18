@@ -48,6 +48,7 @@ from bot.handlers.common import (
     start,
 )
 from bot.handlers.ingest import (
+    PENDING_INGEST_KEY,
     ingest_confirm,
     ingest_submit,
     menu_ingest,
@@ -73,6 +74,16 @@ from bot.handlers.search import menu_search, menu_search_by_stal, search_by_stal
 from config import settings
 
 
+async def menu_text_submit(update, context) -> int:
+    """Направляет текст либо в подтверждение ingest, либо в свободную agent-команду."""
+    text = (update.message.text or "").strip()
+    if text == BTN_MENU:
+        return await fallback_to_menu(update, context)
+    if context.user_data.get(PENDING_INGEST_KEY):
+        return await ingest_confirm(update, context)
+    return await menu_agent_command(update, context)
+
+
 def button_regex(text: str) -> filters.Regex:
     """Создает регулярный фильтр для точного совпадения текста кнопки."""
     return filters.Regex(f"^{re.escape(text)}$")
@@ -84,6 +95,7 @@ def build_application() -> Application:
     application.bot_data["api_client"] = ApiClient(
         base_url=settings.api_base_url,
         timeout_seconds=settings.request_timeout_seconds,
+        long_timeout_seconds=settings.long_request_timeout_seconds,
     )
 
     menu_entry_points = [
@@ -97,13 +109,15 @@ def build_application() -> Application:
         MessageHandler(button_regex(BTN_INGEST), menu_ingest),
         MessageHandler(button_regex(BTN_SEARCH), menu_search),
         MessageHandler(button_regex(BTN_SEARCH_BY_STAL), menu_search_by_stal),
-        MessageHandler((filters.Document.ALL | filters.PHOTO) & ~filters.COMMAND, menu_agent_command),
+        # Свободный текст и файлы — только в STATE_MENU: при allow_reentry entry points
+        # проверяются раньше state handlers и перехватывали бы ввод в сценариях.
     ]
 
     conv = ConversationHandler(
         entry_points=menu_entry_points,
         states={
             STATE_MENU: [
+                MessageHandler(button_regex(BTN_MENU), fallback_to_menu),
                 MessageHandler(button_regex(BTN_ADD), menu_add),
                 MessageHandler(button_regex(BTN_UPDATE), menu_update),
                 MessageHandler(button_regex(BTN_DELETE), menu_delete),
@@ -111,10 +125,8 @@ def build_application() -> Application:
                 MessageHandler(button_regex(BTN_INGEST), menu_ingest),
                 MessageHandler(button_regex(BTN_SEARCH), menu_search),
                 MessageHandler(button_regex(BTN_SEARCH_BY_STAL), menu_search_by_stal),
-                MessageHandler(
-                    (filters.TEXT | filters.Document.ALL | filters.PHOTO) & ~filters.COMMAND,
-                    menu_agent_command,
-                ),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, menu_text_submit),
+                MessageHandler((filters.Document.ALL | filters.PHOTO) & ~filters.COMMAND, menu_agent_command),
             ],
             STATE_ADD_STAL: [
                 MessageHandler(button_regex(BTN_MENU), fallback_to_menu),

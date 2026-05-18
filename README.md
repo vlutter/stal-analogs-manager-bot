@@ -29,6 +29,7 @@ pip install -r requirements.txt
 TELEGRAM_BOT_TOKEN=ваш_токен_бота
 API_BASE_URL=http://127.0.0.1:8000
 REQUEST_TIMEOUT_SECONDS=30
+LONG_REQUEST_TIMEOUT_SECONDS=300
 ```
 
 4. Запустите бота:
@@ -87,6 +88,7 @@ stal-analogs-manager-bot/
 4. Нужный хендлер в `bot/handlers/*`:
    - валидирует ввод пользователя,
    - вызывает методы `ApiClient` через `bot/services/context.py`,
+   - для произвольных agent-команд быстро подтверждает получение запроса и продолжает долгую обработку в фоне,
    - формирует ответ и переводит пользователя в нужное состояние.
 
 ## Навигация по хендлерам (куда идти с задачей)

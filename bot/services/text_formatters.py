@@ -37,8 +37,10 @@ def format_agent_command_response(response: dict[str, Any]) -> str:
     tool_name = response.get("tool_name")
     result = response.get("result") or {}
 
-    if result.get("status") == "no_tool_call":
-        return f"{message}\nПопробуйте сформулировать действие конкретнее."
+    result_status = result.get("status")
+    if result_status in ("unclear_request", "no_tool_call"):
+        # Сообщение уже сформировано на backend (живой ответ или шаблон); не дублируем машинную подсказку.
+        return message
 
     if tool_name in {"add_aliases", "set_aliases", "remove_aliases"}:
         aliases = result.get("aliases", [])
@@ -51,8 +53,10 @@ def format_agent_command_response(response: dict[str, Any]) -> str:
         )
 
     if tool_name == "delete_mapping":
-        status = "удалено" if result.get("deleted") else "не найдено"
-        return "\n".join([message, f"STAL: {result.get('stal_code', 'не указан')}", f"Статус: {status}"])
+        mapping_status = "удалено" if result.get("deleted") else "не найдено"
+        return "\n".join(
+            [message, f"STAL: {result.get('stal_code', 'не указан')}", f"Статус: {mapping_status}"]
+        )
 
     if tool_name == "search_article":
         if not result.get("found"):

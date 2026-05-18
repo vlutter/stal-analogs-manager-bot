@@ -18,6 +18,7 @@ class ApiError(Exception):
 class ApiClient:
     base_url: str
     timeout_seconds: float = 30.0
+    long_timeout_seconds: float = 300.0
 
     async def _request(
         self,
@@ -28,12 +29,14 @@ class ApiClient:
         data: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        timeout_seconds: float | None = None,
     ) -> Any:
         url = f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
         started = perf_counter()
         logger.info("API запрос -> %s %s | params=%s", method, url, params)
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds, trust_env=False) as client:
+            timeout = timeout_seconds if timeout_seconds is not None else self.timeout_seconds
+            async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
                 response = await client.request(method, url, json=json, data=data, files=files, params=params)
         except httpx.HTTPError as exc:
             elapsed_ms = (perf_counter() - started) * 1000
@@ -100,11 +103,11 @@ class ApiClient:
 
     async def ingest_file(self, filename: str, file_bytes: bytes) -> dict[str, Any]:
         files = {"file": (filename, file_bytes)}
-        return await self._request("POST", "/agent/ingest-file", files=files)
+        return await self._request("POST", "/agent/ingest-file", files=files, timeout_seconds=self.long_timeout_seconds)
 
     async def deep_extraction_file(self, filename: str, file_bytes: bytes) -> dict[str, Any]:
         files = {"file": (filename, file_bytes)}
-        return await self._request("POST", "/agent/deep-extraction", files=files)
+        return await self._request("POST", "/agent/deep-extraction", files=files, timeout_seconds=self.long_timeout_seconds)
 
     async def refine_ingest_items(
         self,
@@ -117,7 +120,12 @@ class ApiClient:
             "items": items,
             "correction": correction,
         }
-        return await self._request("POST", "/agent/refine-ingest-items", json=payload)
+        return await self._request(
+            "POST",
+            "/agent/refine-ingest-items",
+            json=payload,
+            timeout_seconds=self.long_timeout_seconds,
+        )
 
     async def bulk_upsert(self, source_filename: str | None, items: list[dict[str, Any]]) -> dict[str, Any]:
         items_payload: list[dict[str, Any]] = []
@@ -138,7 +146,13 @@ class ApiClient:
 
     async def command(self, message: str, filename: str | None = None, file_bytes: bytes | None = None) -> dict[str, Any]:
         files = {"file": (filename or "uploaded.file", file_bytes)} if file_bytes is not None else None
-        return await self._request("POST", "/agent/command", data={"message": message}, files=files)
+        return await self._request(
+            "POST",
+            "/agent/command",
+            data={"message": message},
+            files=files,
+            timeout_seconds=self.long_timeout_seconds,
+        )
 
     async def search(self, article: str) -> dict[str, Any]:
         return await self._request("GET", "/search", params={"article": article})
