@@ -44,6 +44,7 @@ from bot.handlers.common import (
     handle_unexpected_text,
     log_incoming_update,
     post_init,
+    post_shutdown,
     show_menu,
     start,
 )
@@ -91,16 +92,22 @@ def button_regex(text: str) -> filters.Regex:
 
 def build_application() -> Application:
     """Собирает и настраивает Telegram-приложение с ConversationHandler."""
-    application = Application.builder().token(settings.telegram_bot_token).post_init(post_init).build()
+    application = (
+        Application.builder()
+        .token(settings.telegram_bot_token)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
     application.bot_data["api_client"] = ApiClient(
         base_url=settings.api_base_url,
+        api_token=settings.api_token,
         timeout_seconds=settings.request_timeout_seconds,
         long_timeout_seconds=settings.long_request_timeout_seconds,
     )
 
     menu_entry_points = [
         CommandHandler("start", start),
-        CommandHandler("menu", show_menu),
         CommandHandler("help", start),
         MessageHandler(button_regex(BTN_ADD), menu_add),
         MessageHandler(button_regex(BTN_UPDATE), menu_update),

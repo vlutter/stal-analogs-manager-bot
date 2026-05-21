@@ -1,0 +1,26 @@
+services:
+  bot:
+    image: ${APP_IMAGE:-stal-analogs-manager-bot:local}
+    container_name: stal-analogs-manager-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - bot_logs:/app/logs
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os, urllib.request; token=os.environ['API_TOKEN']; base=os.environ.get('API_BASE_URL', 'http://127.0.0.1:8000').rstrip('/'); req=urllib.request.Request(base + '/health', headers={'Authorization': 'Bearer ' + token}); urllib.request.urlopen(req, timeout=5).read()",
+        ]
+      interval: 60s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  bot_logs:

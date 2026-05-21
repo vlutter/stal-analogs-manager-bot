@@ -27,6 +27,7 @@ pip install -r requirements.txt
 
 ```env
 TELEGRAM_BOT_TOKEN=ваш_токен_бота
+API_TOKEN=ваш_bearer_токен_для_api
 API_BASE_URL=http://127.0.0.1:8000
 REQUEST_TIMEOUT_SECONDS=30
 LONG_REQUEST_TIMEOUT_SECONDS=300
@@ -39,6 +40,10 @@ python bot.py
 ```
 
 Важно: API-сервис `stal-analogs-storage` должен быть запущен отдельно по адресу из `API_BASE_URL`.
+
+## Деплой
+
+Для публикации через GitHub Actions, GitHub Container Registry и Docker Compose на Ubuntu 24.04 используйте инструкцию в `DEPLOY.md`.
 
 ## Архитектура проекта
 

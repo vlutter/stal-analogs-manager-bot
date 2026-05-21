@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from telegram import Update
+from telegram import BotCommand, MenuButtonCommands, Update
 from telegram.ext import Application, ContextTypes
 
 from api_client import ApiClient, ApiError
@@ -45,13 +45,22 @@ async def unknown_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def post_init(application: Application) -> None:
-    """Проверяет доступность API после инициализации приложения бота."""
+    """Настраивает команды Telegram и проверяет доступность API."""
+    await application.bot.set_my_commands([BotCommand("start", "Перезапустить бота")])
+    await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+
     api: ApiClient = application.bot_data["api_client"]
     try:
         await api.health()
         logger.info("API доступно: %s", api.base_url)
     except ApiError as exc:
         logger.warning("API недоступно при старте бота: %s", exc)
+
+
+async def post_shutdown(application: Application) -> None:
+    """Закрывает HTTP-сессию API-клиента при остановке бота."""
+    api: ApiClient = application.bot_data["api_client"]
+    await api.aclose()
 
 
 async def log_incoming_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
