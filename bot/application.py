@@ -4,6 +4,7 @@ import re
 
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     ConversationHandler,
     MessageHandler,
@@ -28,6 +29,7 @@ from bot.constants import (
     STATE_DELETE_ALIAS_STAL,
     STATE_DELETE_ALIAS_VALUES,
     STATE_DELETE_CODES,
+    STATE_HELP,
     STATE_INGEST_CONFIRM,
     STATE_INGEST_SELECT_MODE,
     STATE_INGEST_WAIT_FILE,
@@ -37,11 +39,14 @@ from bot.constants import (
     STATE_UPDATE_ALIASES,
     STATE_UPDATE_SOURCE,
     STATE_UPDATE_STAL,
+    HELP_CALLBACK_PREFIX,
 )
 from bot.handlers.agent_command import menu_agent_command
 from bot.handlers.common import (
     fallback_to_menu,
     handle_unexpected_text,
+    help_callback,
+    help_command,
     log_incoming_update,
     post_init,
     post_shutdown,
@@ -108,7 +113,7 @@ def build_application() -> Application:
 
     menu_entry_points = [
         CommandHandler("start", start),
-        CommandHandler("help", start),
+        CommandHandler("help", help_command),
         MessageHandler(button_regex(BTN_ADD), menu_add),
         MessageHandler(button_regex(BTN_UPDATE), menu_update),
         MessageHandler(button_regex(BTN_DELETE), menu_delete),
@@ -124,6 +129,7 @@ def build_application() -> Application:
         entry_points=menu_entry_points,
         states={
             STATE_MENU: [
+                CallbackQueryHandler(help_callback, pattern=f"^{re.escape(HELP_CALLBACK_PREFIX)}"),
                 MessageHandler(button_regex(BTN_MENU), fallback_to_menu),
                 MessageHandler(button_regex(BTN_ADD), menu_add),
                 MessageHandler(button_regex(BTN_UPDATE), menu_update),
@@ -133,6 +139,11 @@ def build_application() -> Application:
                 MessageHandler(button_regex(BTN_SEARCH), menu_search),
                 MessageHandler(button_regex(BTN_SEARCH_BY_STAL), menu_search_by_stal),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, menu_text_submit),
+                MessageHandler((filters.Document.ALL | filters.PHOTO) & ~filters.COMMAND, menu_agent_command),
+            ],
+            STATE_HELP: [
+                CallbackQueryHandler(help_callback, pattern=f"^{re.escape(HELP_CALLBACK_PREFIX)}"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, menu_agent_command),
                 MessageHandler((filters.Document.ALL | filters.PHOTO) & ~filters.COMMAND, menu_agent_command),
             ],
             STATE_ADD_STAL: [
@@ -196,6 +207,7 @@ def build_application() -> Application:
             ],
         },
         fallbacks=[
+            CallbackQueryHandler(help_callback, pattern=f"^{re.escape(HELP_CALLBACK_PREFIX)}"),
             MessageHandler(button_regex(BTN_MENU), fallback_to_menu),
             CommandHandler("cancel", show_menu),
         ],
