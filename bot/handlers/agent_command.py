@@ -40,19 +40,19 @@ async def process_agent_command_in_background(
     context: ContextTypes.DEFAULT_TYPE,
     command_text: str,
     attached_file: tuple[str, bytes] | None,
+    user_id: str,
 ) -> None:
     """Выполняет долгую agent-команду и отправляет результат отдельным сообщением."""
     api = get_api(context)
     try:
         if attached_file:
             filename, file_bytes = attached_file
-            if command_text:
-                result = await api.command(command_text, filename=filename, file_bytes=file_bytes)
-            else:
-                ingest_result = await api.ingest_file(filename, file_bytes)
-                result = {"tool_name": "ingest_file", "result": ingest_result}
+            result = await api.command(
+                command_text, user_id=user_id, filename=filename, file_bytes=file_bytes,
+            )
+            print(result)
         else:
-            result = await api.command(command_text)
+            result = await api.command(command_text, user_id=user_id)
     except ApiError as exc:
         await reply_api_error(message, exc)
         return
@@ -102,6 +102,14 @@ async def menu_agent_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if message is None:
         return STATE_MENU
 
+    user = update.effective_user
+    if user is None:
+        await message.reply_text(
+            "Не удалось определить пользователя. Попробуйте перезапустить бота командой /start.",
+            reply_markup=main_keyboard(),
+        )
+        return STATE_MENU
+
     command_text = (message.text or message.caption or "").strip()
     attached_file = await download_command_file(update, context)
     if not command_text and not attached_file:
@@ -116,7 +124,9 @@ async def menu_agent_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=main_keyboard(),
     )
     context.application.create_task(
-        process_agent_command_in_background(message, context, command_text, attached_file),
+        process_agent_command_in_background(
+            message, context, command_text, attached_file, user_id=str(user.id),
+        ),
         update=update,
     )
     return STATE_MENU

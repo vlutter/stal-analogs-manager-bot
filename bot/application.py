@@ -77,6 +77,7 @@ from bot.handlers.mappings import (
     update_submit,
 )
 from bot.handlers.search import menu_search, menu_search_by_stal, search_by_stal_submit, search_submit
+from bot.handlers.session import cmd_new
 from config import settings
 
 
@@ -114,6 +115,7 @@ def build_application() -> Application:
     menu_entry_points = [
         CommandHandler("start", start),
         CommandHandler("help", help_command),
+        CommandHandler("new", cmd_new),
         MessageHandler(button_regex(BTN_ADD), menu_add),
         MessageHandler(button_regex(BTN_UPDATE), menu_update),
         MessageHandler(button_regex(BTN_DELETE), menu_delete),
@@ -210,6 +212,7 @@ def build_application() -> Application:
             CallbackQueryHandler(help_callback, pattern=f"^{re.escape(HELP_CALLBACK_PREFIX)}"),
             MessageHandler(button_regex(BTN_MENU), fallback_to_menu),
             CommandHandler("cancel", show_menu),
+            CommandHandler("new", cmd_new),
         ],
         allow_reentry=True,
     )

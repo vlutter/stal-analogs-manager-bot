@@ -172,14 +172,27 @@ class ApiClient:
         }
         return await self._request("POST", "/mappings/bulk-upsert", json=payload)
 
-    async def command(self, message: str, filename: str | None = None, file_bytes: bytes | None = None) -> dict[str, Any]:
+    async def command(
+        self,
+        message: str,
+        user_id: str,
+        filename: str | None = None,
+        file_bytes: bytes | None = None,
+    ) -> dict[str, Any]:
         files = {"file": (filename or "uploaded.file", file_bytes)} if file_bytes is not None else None
         return await self._request(
             "POST",
             "/agent/command",
-            data={"message": message},
+            data={"message": message, "user_id": user_id},
             files=files,
             timeout_seconds=self.long_timeout_seconds,
+        )
+
+    async def reset_session(self, user_id: str) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/agent/session/reset",
+            data={"user_id": user_id},
         )
 
     async def search(self, article: str) -> dict[str, Any]:

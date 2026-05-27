@@ -73,6 +73,8 @@ LONG_REQUEST_TIMEOUT_SECONDS=300
 
 Важно: внутри Docker-контейнера `127.0.0.1` означает сам контейнер бота, а не сервер. Если `stal-analogs-storage` опубликован на сервере как `127.0.0.1:8000`, используйте `API_BASE_URL=http://host.docker.internal:8000`. В compose уже добавлен `host.docker.internal:host-gateway`.
 
+Бот ничего сам не хранит: контекст диалога (сессии, история, прикреплённые файлы) живёт на стороне `stal-analogs-storage` (SQLite + MinIO). Бот лишь передаёт `user_id` пользователя в API и поддерживает команду `/new` для сброса контекста. Команда регистрируется автоматически на старте бота через `set_my_commands`, никаких дополнительных шагов на сервере не требуется.
+
 ## 3. Настроить GitHub Secrets
 
 В репозитории бота откройте `Settings -> Secrets and variables -> Actions -> New repository secret` и добавьте:
@@ -114,6 +116,14 @@ docker compose exec bot python -c "import os, urllib.request; req=urllib.request
 ```json
 { "status": "ok", "version": "0.1.0" }
 ```
+
+Также убедитесь, что в Telegram у бота появилась команда `/new` (рядом со `/start` и `/help`). Если меню команд не обновилось, перезапустите бота:
+
+```bash
+docker compose restart bot
+```
+
+Быстрый smoke-тест контекста: напишите боту что-то, потом отправьте `/new` — он должен ответить «Начат новый диалог. Прошлый контекст очищен.» После этого следующий запрос не должен ссылаться на предыдущий.
 
 ## 5. Полезные команды
 

@@ -89,6 +89,7 @@ async def post_init(application: Application) -> None:
         [
             BotCommand("start", "Перезапустить бота"),
             BotCommand("help", "❓ Обучалка и подсказки"),
+            BotCommand("new", "🧹 Начать новый диалог с агентом"),
         ]
     )
     await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
