@@ -1,10 +1,12 @@
+from typing import Annotated
+
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class BotSettings(BaseSettings):
     telegram_bot_token: str = ""
-    telegram_allowed_user_ids: list[int] = []
+    telegram_allowed_user_ids: Annotated[list[int], NoDecode] = []
     telegram_connect_timeout_seconds: float = 30.0
     telegram_read_timeout_seconds: float = 30.0
     telegram_write_timeout_seconds: float = 30.0
