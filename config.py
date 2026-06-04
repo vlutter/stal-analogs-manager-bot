@@ -3,6 +3,12 @@ from pydantic_settings import BaseSettings
 
 class BotSettings(BaseSettings):
     telegram_bot_token: str = ""
+    telegram_connect_timeout_seconds: float = 30.0
+    telegram_read_timeout_seconds: float = 30.0
+    telegram_write_timeout_seconds: float = 30.0
+    telegram_pool_timeout_seconds: float = 30.0
+    telegram_retry_attempts: int = 3
+    telegram_retry_delay_seconds: float = 2.0
     api_token: str
     api_base_url: str = "http://127.0.0.1:8000"
     request_timeout_seconds: float = 30.0

@@ -7,10 +7,11 @@ from telegram.ext import ContextTypes
 
 from api_client import ApiError
 from bot.constants import STATE_MENU
-from bot.handlers.ingest import format_ingest_preview, show_ingest_preview, store_pending_ingest
-from bot.keyboards import main_keyboard
+from bot.handlers.ingest import format_ingest_preview, show_ingest_preview
 from bot.services.context import get_api
 from bot.services.errors import reply_api_error
+from bot.services.telegram_markup import send_formatted_reply
+from bot.services.telegram_retry import safe_reply_text
 from bot.services.text_formatters import format_agent_command_response
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,6 @@ async def process_agent_command_in_background(
             result = await api.command(
                 command_text, user_id=user_id, filename=filename, file_bytes=file_bytes,
             )
-            print(result)
         else:
             result = await api.command(command_text, user_id=user_id)
     except ApiError as exc:
@@ -58,9 +58,9 @@ async def process_agent_command_in_background(
         return
     except Exception:
         logger.exception("Unexpected error while processing agent command in background")
-        await message.reply_text(
+        await safe_reply_text(
+            message,
             "Не удалось обработать запрос из-за внутренней ошибки. Попробуйте позже.",
-            reply_markup=main_keyboard(),
         )
         return
 
@@ -74,8 +74,11 @@ async def send_agent_command_result(
     attached_file: tuple[str, bytes] | None,
 ) -> None:
     """Отправляет пользователю результат agent-команды."""
-    if result.get("tool_name") in {"ingest_file", "deep_extraction_file"}:
+    if result.get("tool_name") in {"ingest_file", "deep_extraction_file", "refine_ingest_items"}:
         ingest_result = result.get("result") or {}
+        if ingest_result.get("status") == "no_active_preview":
+            await send_formatted_reply(message, format_agent_command_response(result))
+            return
         if result.get("tool_name") == "deep_extraction_file":
             llm_items = ingest_result.get("items") or []
             filename = ingest_result.get("source_filename") or (attached_file[0] if attached_file else "uploaded.file")
@@ -83,17 +86,16 @@ async def send_agent_command_result(
             llm_items = ingest_result.get("llm_items") or []
             filename = ingest_result.get("filename") or (attached_file[0] if attached_file else "uploaded.file")
         if not llm_items:
-            await message.reply_text(
+            await send_formatted_reply(
+                message,
                 format_ingest_preview(filename, llm_items),
-                reply_markup=main_keyboard(),
             )
             return
 
-        store_pending_ingest(context, filename, llm_items)
         await show_ingest_preview(message, filename, llm_items)
         return
 
-    await message.reply_text(format_agent_command_response(result), reply_markup=main_keyboard())
+    await send_formatted_reply(message, format_agent_command_response(result))
 
 
 async def menu_agent_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -104,25 +106,22 @@ async def menu_agent_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     user = update.effective_user
     if user is None:
-        await message.reply_text(
+        await safe_reply_text(
+            message,
             "Не удалось определить пользователя. Попробуйте перезапустить бота командой /start.",
-            reply_markup=main_keyboard(),
         )
         return STATE_MENU
 
     command_text = (message.text or message.caption or "").strip()
     attached_file = await download_command_file(update, context)
     if not command_text and not attached_file:
-        await message.reply_text(
+        await safe_reply_text(
+            message,
             "Напишите, что нужно сделать.",
-            reply_markup=main_keyboard(),
         )
         return STATE_MENU
 
-    await message.reply_text(
-        "Думаю...",
-        reply_markup=main_keyboard(),
-    )
+    await safe_reply_text(message, "Думаю...")
     context.application.create_task(
         process_agent_command_in_background(
             message, context, command_text, attached_file, user_id=str(user.id),

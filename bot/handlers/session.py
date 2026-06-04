@@ -7,7 +7,6 @@ from telegram.ext import ContextTypes
 
 from api_client import ApiError
 from bot.constants import STATE_MENU
-from bot.keyboards import main_keyboard
 from bot.services.context import get_api
 from bot.services.errors import reply_api_error
 
@@ -24,7 +23,6 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if user is None:
         await message.reply_text(
             "Не удалось определить пользователя. Попробуйте перезапустить бота командой /start.",
-            reply_markup=main_keyboard(),
         )
         return STATE_MENU
 
@@ -38,13 +36,9 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         logger.exception("Unexpected error while resetting agent session")
         await message.reply_text(
             "Не удалось сбросить контекст. Попробуйте позже.",
-            reply_markup=main_keyboard(),
         )
         return STATE_MENU
 
     context.user_data.clear()
-    await message.reply_text(
-        "Начат новый диалог. Прошлый контекст очищен.",
-        reply_markup=main_keyboard(),
-    )
+    await message.reply_text("Начат новый диалог. Прошлый контекст очищен.")
     return STATE_MENU

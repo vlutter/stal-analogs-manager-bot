@@ -64,7 +64,7 @@ stal-analogs-manager-bot/
 │  ├─ main.py                  # основной запуск polling
 │  ├─ application.py           # build_application(), ConversationHandler и маршрутизация
 │  ├─ constants.py             # кнопки Telegram и ID состояний ConversationHandler
-│  ├─ keyboards.py             # конструкторы reply-клавиатур
+│  ├─ keyboards.py             # inline-клавиатура обучалки
 │  ├─ logging_setup.py         # настройка консольного и файлового логирования
 │  ├─ runner.py                # BotRunner для программного старта/остановки (если нужно интегрировать)
 │  ├─ handlers/
@@ -98,7 +98,7 @@ stal-analogs-manager-bot/
 
 ## Навигация по хендлерам (куда идти с задачей)
 
-- Изменение main-меню/кнопок: `bot/constants.py`, `bot/keyboards.py`
+- Обучалка (inline-кнопки): `bot/constants.py`, `bot/keyboards.py`, `bot/services/text_formatters.py`
 - Добавить/изменить state и маршрутизацию: `bot/application.py`
 - Логика CRUD маппингов: `bot/handlers/mappings.py`
 - Поисковые сценарии: `bot/handlers/search.py`
