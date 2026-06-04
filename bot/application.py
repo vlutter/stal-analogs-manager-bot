@@ -6,20 +6,15 @@ import re
 
 
 
+from telegram import Update
 from telegram.ext import (
-
     Application,
-
     CallbackQueryHandler,
-
     CommandHandler,
-
     ConversationHandler,
-
     MessageHandler,
-
+    TypeHandler,
     filters,
-
 )
 
 
@@ -57,6 +52,7 @@ from bot.handlers.common import (
 )
 
 from bot.handlers.session import cmd_new
+from bot.services.access import enforce_whitelist
 
 from config import settings
 
@@ -166,8 +162,10 @@ def build_application() -> Application:
 
 
 
-    # Группа -1: логируем апдейты до обработки ConversationHandler.
+    # Группа -2: whitelist до логирования и бизнес-логики.
+    application.add_handler(TypeHandler(Update, enforce_whitelist), group=-2)
 
+    # Группа -1: логируем апдейты до обработки ConversationHandler.
     application.add_handler(MessageHandler(filters.ALL, log_incoming_update), group=-1)
 
     application.add_handler(conv)

@@ -9,6 +9,8 @@
 
 Секреты бота (`TELEGRAM_BOT_TOKEN`, `API_TOKEN`) хранятся только на сервере в `.env`.
 
+Список разрешённых пользователей (`TELEGRAM_ALLOWED_USER_IDS`) задаётся в GitHub Secret и при каждом деплое автоматически записывается в `.env` на сервере. Бот отклоняет все запросы от Telegram-пользователей, чей numeric `user_id` не входит в этот список.
+
 ## 1. Подготовить сервер
 
 Если сервер уже подготовлен для `stal-analogs-storage`, Docker и пользователь `deploy` у вас, скорее всего, уже есть. Тогда переходите сразу к разделу 2.
@@ -65,11 +67,16 @@ nano .env
 
 ```env
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_ALLOWED_USER_IDS=123456789,987654321
 API_TOKEN=replace-with-the-same-token-as-storage-api
 API_BASE_URL=http://host.docker.internal:8000
 REQUEST_TIMEOUT_SECONDS=30
 LONG_REQUEST_TIMEOUT_SECONDS=300
 ```
+
+`TELEGRAM_ALLOWED_USER_IDS` в `.env` на сервере можно не заполнять вручную: при деплое workflow перезапишет это значение из GitHub Secret. Для локального запуска укажите список в `.env` сами (см. `.env.example`).
+
+Чтобы узнать numeric `user_id` пользователя Telegram, попросите его написать боту [@userinfobot](https://t.me/userinfobot) или [@getmyid_bot](https://t.me/getmyid_bot) — в ответ придёт числовой идентификатор вида `123456789`.
 
 Важно: внутри Docker-контейнера `127.0.0.1` означает сам контейнер бота, а не сервер. Если `stal-analogs-storage` опубликован на сервере как `127.0.0.1:8000`, используйте `API_BASE_URL=http://host.docker.internal:8000`. В compose уже добавлен `host.docker.internal:host-gateway`.
 
@@ -85,9 +92,12 @@ SSH_USER=deploy
 SSH_KEY=<private ssh key>
 SSH_PORT=22
 DEPLOY_PATH=/home/deploy/stal-analogs-manager-bot
+TELEGRAM_ALLOWED_USER_IDS=123456789,987654321
 ```
 
-Секреты приложения в GitHub добавлять не нужно: они лежат на сервере в `.env`.
+`TELEGRAM_ALLOWED_USER_IDS` — обязательный secret: comma-separated список numeric Telegram user ID, которым разрешён доступ к боту. Чтобы добавить или убрать пользователя, обновите secret и запустите деплой (push в `main`/`master` или `Run workflow`).
+
+Секреты приложения (`TELEGRAM_BOT_TOKEN`, `API_TOKEN`) в GitHub добавлять не нужно: они лежат на сервере в `.env`.
 
 ## 4. Запустить первый деплой
 
@@ -124,6 +134,8 @@ docker compose restart bot
 ```
 
 Быстрый smoke-тест контекста: напишите боту что-то, потом отправьте `/new` — он должен ответить «Начат новый диалог. Прошлый контекст очищен.» После этого следующий запрос не должен ссылаться на предыдущий.
+
+Проверка whitelist: пользователь из списка должен получать обычные ответы бота; пользователь вне списка — сообщение «У вас нет доступа к этому боту...». В логах для отказа будет строка `Доступ запрещён | user_id=...`.
 
 ## 5. Полезные команды
 

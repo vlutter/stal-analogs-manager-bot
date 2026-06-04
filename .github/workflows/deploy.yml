@@ -62,12 +62,13 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           GHCR_TOKEN: ${{ github.token }}
           GHCR_USER: ${{ github.actor }}
+          TELEGRAM_ALLOWED_USER_IDS: ${{ secrets.TELEGRAM_ALLOWED_USER_IDS }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || '22' }}
-          envs: APP_IMAGE,DEPLOY_PATH,GHCR_TOKEN,GHCR_USER
+          envs: APP_IMAGE,DEPLOY_PATH,GHCR_TOKEN,GHCR_USER,TELEGRAM_ALLOWED_USER_IDS
           script: |
             set -eu
 
@@ -75,6 +76,22 @@ jobs:
               echo "DEPLOY_PATH secret is required"
               exit 1
             fi
+
+            if [ -z "${TELEGRAM_ALLOWED_USER_IDS:-}" ]; then
+              echo "TELEGRAM_ALLOWED_USER_IDS secret is required"
+              exit 1
+            fi
+
+            upsert_env() {
+              key="$1"
+              value="$2"
+              if grep -q "^${key}=" .env 2>/dev/null; then
+                escaped=$(printf '%s\n' "$value" | sed -e 's/[\/&]/\\&/g')
+                sed -i "s|^${key}=.*|${key}=${escaped}|" .env
+              else
+                printf '%s=%s\n' "$key" "$value" >> .env
+              fi
+            }
 
             mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
@@ -112,6 +129,8 @@ jobs:
               echo ".env is missing in $DEPLOY_PATH. Create it on the server before deployment."
               exit 1
             fi
+
+            upsert_env TELEGRAM_ALLOWED_USER_IDS "$TELEGRAM_ALLOWED_USER_IDS"
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             APP_IMAGE="$APP_IMAGE" docker compose pull

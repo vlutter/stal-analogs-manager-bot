@@ -10,6 +10,7 @@ from bot.constants import HELP_CALLBACK_HOME, HELP_CALLBACK_MENU, STATE_HELP, ST
 from bot.keyboards import help_keyboard, start_help_keyboard
 from bot.services.telegram_markup import send_formatted_reply
 from bot.services.text_formatters import greeting_text, help_text, help_topic_text
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,14 @@ async def post_init(application: Application) -> None:
     await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
 
     api: ApiClient = application.bot_data["api_client"]
+
+    allowed_count = len(settings.telegram_allowed_user_ids)
+    if allowed_count == 0:
+        logger.warning(
+            "Whitelist пуст: доступ к боту заблокирован для всех пользователей"
+        )
+    else:
+        logger.info("Whitelist активен: %s пользователей", allowed_count)
 
     try:
         await api.health()

@@ -1,8 +1,10 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
 class BotSettings(BaseSettings):
     telegram_bot_token: str = ""
+    telegram_allowed_user_ids: list[int] = []
     telegram_connect_timeout_seconds: float = 30.0
     telegram_read_timeout_seconds: float = 30.0
     telegram_write_timeout_seconds: float = 30.0
@@ -13,6 +15,19 @@ class BotSettings(BaseSettings):
     api_base_url: str = "http://127.0.0.1:8000"
     request_timeout_seconds: float = 30.0
     long_request_timeout_seconds: float = 300.0
+
+    @field_validator("telegram_allowed_user_ids", mode="before")
+    @classmethod
+    def parse_telegram_allowed_user_ids(cls, value: object) -> list[int]:
+        if value is None or value == "":
+            return []
+        if isinstance(value, list):
+            return [int(item) for item in value]
+        return [
+            int(part.strip())
+            for part in str(value).split(",")
+            if part.strip()
+        ]
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
