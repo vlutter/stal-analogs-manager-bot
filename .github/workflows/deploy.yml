@@ -104,8 +104,8 @@ jobs:
                 restart: unless-stopped
                 env_file:
                   - .env
-                extra_hosts:
-                  - "host.docker.internal:host-gateway"
+                networks:
+                  - stal-analogs-storage
                 volumes:
                   - bot_logs:/app/logs
                 healthcheck:
@@ -120,6 +120,10 @@ jobs:
                   timeout: 10s
                   start_period: 30s
                   retries: 3
+
+            networks:
+              stal-analogs-storage:
+                external: true
 
             volumes:
               bot_logs:

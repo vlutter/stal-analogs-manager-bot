@@ -69,7 +69,7 @@ nano .env
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 TELEGRAM_ALLOWED_USER_IDS=123456789,987654321
 API_TOKEN=replace-with-the-same-token-as-storage-api
-API_BASE_URL=http://host.docker.internal:8000
+API_BASE_URL=http://stal-analogs-storage-api:8000
 REQUEST_TIMEOUT_SECONDS=30
 LONG_REQUEST_TIMEOUT_SECONDS=300
 ```
@@ -78,7 +78,7 @@ LONG_REQUEST_TIMEOUT_SECONDS=300
 
 Чтобы узнать numeric `user_id` пользователя Telegram, попросите его написать боту [@userinfobot](https://t.me/userinfobot) или [@getmyid_bot](https://t.me/getmyid_bot) — в ответ придёт числовой идентификатор вида `123456789`.
 
-Важно: внутри Docker-контейнера `127.0.0.1` означает сам контейнер бота, а не сервер. Если `stal-analogs-storage` опубликован на сервере как `127.0.0.1:8000`, используйте `API_BASE_URL=http://host.docker.internal:8000`. В compose уже добавлен `host.docker.internal:host-gateway`.
+Важно: бот подключается к API через docker-сеть `stal-analogs-storage` (см. `docker-compose.yml`). Сначала должен быть запущен `stal-analogs-storage` — он создаёт сеть. URL `http://stal-analogs-storage-api:8000` — это `container_name` API-контейнера, порт на хосте (`APP_HOST=127.0.0.1`) для бота не нужен.
 
 Бот ничего сам не хранит: контекст диалога (сессии, история, прикреплённые файлы) живёт на стороне `stal-analogs-storage` (SQLite + MinIO). Бот лишь передаёт `user_id` пользователя в API и поддерживает команду `/new` для сброса контекста. Команда регистрируется автоматически на старте бота через `set_my_commands`, никаких дополнительных шагов на сервере не требуется.
 
@@ -158,4 +158,4 @@ docker compose up -d
 docker compose logs -f bot
 ```
 
-Перед локальным запуском через compose создайте `.env` по примеру из `.env.example`. Если backend запущен локально не в Docker, для Linux используйте `API_BASE_URL=http://host.docker.internal:8000`; для Windows Docker Desktop это значение тоже работает.
+Перед локальным запуском через compose создайте `.env` по примеру из `.env.example`. Сначала поднимите `stal-analogs-storage` (`docker compose up -d`), затем бота. Если backend запущен на хосте без Docker, используйте `API_BASE_URL=http://host.docker.internal:8000` и добавьте в compose `extra_hosts: ["host.docker.internal:host-gateway"]`.
