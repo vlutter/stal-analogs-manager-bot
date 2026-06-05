@@ -1,126 +1,163 @@
 # STAL Analogs Manager Bot
 
-Telegram-бот для управления соответствиями `STAL -> аналоги` через API проекта `stal-analogs-storage`.
+Telegram-бот — тонкий клиент к backend API [`stal-analogs-storage`](https://github.com/stal/stal-analogs-storage). Пользователь пишет задачу обычным текстом или прикрепляет файл; бот передаёт запрос в AI-агент на сервере и показывает результат. Данные в Google Sheets сохраняются только после подтверждения предпросмотра.
+
+Руководство для пользователей бота — в [`GUIDE.md`](GUIDE.md). Инструкция по деплою — в [`DEPLOY.md`](DEPLOY.md).
 
 ## Что умеет бот
 
-- Добавление нового маппинга (`POST /mappings`)
-- Обновление существующего маппинга (`PATCH /mappings/{stal_code}`, `append=true`)
-- Удаление одного или нескольких маппингов (`DELETE /mappings/{stal_code}`)
-- Удаление конкретных артикулов из маппинга (`GET /mappings/{stal_code}` + `PATCH ... append=false`)
-- Загрузка файла и ingest через `/agent/ingest-file` с отчетом по изменениям
-- Глубокий поиск по файлу через `/agent/deep-extraction`: бот ищет не только прямые STAL-соответствия в файле, но и непрямые связи через уже сохраненные артикулы в базе
-- Поиск STAL по аналогу (`GET /search`)
-- Поиск аналогов по STAL (`GET /search/by-stal`)
-- Произвольные команды в `/agent/command` (включая обычное извлечение и глубокий поиск с вложенным файлом)
+- Произвольные команды на естественном языке через `POST /agent/command` (поиск, CRUD маппингов, извлечение из файлов)
+- Загрузка файлов (Excel, CSV, PDF, изображения) с извлечением связок `STAL → аналоги`
+- Глубокий поиск по файлу через уже сохранённые артикулы в базе
+- Предпросмотр массовых изменений с подтверждением «применить» / «отменить» и правкой текстом
+- Сброс контекста диалога командой `/new` (`POST /agent/session/reset`)
+- Inline-обучалка (`/help`) с разделами по сценариям
+- Whitelist Telegram user_id — доступ только разрешённым пользователям
 
-## Быстрый старт
+Контекст сессии (история, прикреплённые файлы, активный предпросмотр) хранится на стороне backend, не в боте.
 
-1. Создайте и активируйте виртуальное окружение.
+## Быстрый старт (локально)
+
+1. Создайте и активируйте виртуальное окружение (Python 3.12+).
 2. Установите зависимости:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Создайте `.env` (можно на основе `.env.example`) и заполните:
+3. Создайте `.env` на основе `.env.example`:
 
 ```env
 TELEGRAM_BOT_TOKEN=ваш_токен_бота
+TELEGRAM_ALLOWED_USER_IDS=123456789,987654321
 API_TOKEN=ваш_bearer_токен_для_api
 API_BASE_URL=http://127.0.0.1:8000
 REQUEST_TIMEOUT_SECONDS=30
 LONG_REQUEST_TIMEOUT_SECONDS=300
 ```
 
-4. Запустите бота:
+`TELEGRAM_ALLOWED_USER_IDS` — comma-separated список numeric Telegram user ID. Узнать свой ID можно через [@userinfobot](https://t.me/userinfobot).
+
+4. Запустите backend `stal-analogs-storage` по адресу из `API_BASE_URL`.
+5. Запустите бота:
 
 ```bash
 python bot.py
 ```
 
-Важно: API-сервис `stal-analogs-storage` должен быть запущен отдельно по адресу из `API_BASE_URL`.
+## Быстрый старт (Docker)
+
+```bash
+docker build -t stal-analogs-manager-bot:local .
+docker compose up -d
+docker compose logs -f bot
+```
+
+Compose подключается к внешней docker-сети `stal-analogs-storage` (создаётся при запуске storage). Сначала поднимите storage, затем бота. Подробности — в [`DEPLOY.md`](DEPLOY.md).
 
 ## Деплой
 
-Для публикации через GitHub Actions, GitHub Container Registry и Docker Compose на Ubuntu 24.04 используйте инструкцию в `DEPLOY.md`.
+Публикация через GitHub Actions → GitHub Container Registry → Docker Compose на Ubuntu 24.04 описана в [`DEPLOY.md`](DEPLOY.md).
 
-## Архитектура проекта
+## Архитектура
 
-Проект разделен на 3 уровня:
+Бот не содержит бизнес-логики маппингов — только transport/UI и HTTP-клиент к API.
 
-- **Transport/UI**: Telegram-хендлеры, клавиатуры, переходы по состояниям
-- **Application wiring**: сборка `Application`, `ConversationHandler`, регистрация роутов
-- **Infrastructure**: HTTP-клиент к API, настройки, логирование
+```text
+Telegram update
+      │
+      ▼
+enforce_whitelist (group -2)
+      │
+      ▼
+ConversationHandler
+  /start, /help, /new
+  текст и файлы → menu_agent_command
+      │
+      ▼
+ApiClient.command()  ──►  POST /agent/command  (stal-analogs-storage)
+      │
+      ▼
+Форматирование ответа, предпросмотр ingest (XLSX при >20 записей)
+```
+
+### Уровни
+
+- **Transport/UI**: хендлеры Telegram, клавиатуры, форматирование ответов
+- **Application wiring**: `build_application()`, `ConversationHandler`, whitelist, логирование
+- **Infrastructure**: `ApiClient`, настройки (`pydantic-settings`), retry для Telegram API
 
 ### Карта файлов
 
 ```text
 stal-analogs-manager-bot/
 ├─ bot.py                      # совместимый entrypoint; делегирует запуск в bot/main.py
-├─ api_client.py               # async HTTP-клиент к backend API + нормализация ошибок ApiError
-├─ config.py                   # загрузка настроек из env через pydantic-settings
+├─ api_client.py               # async HTTP-клиент: /health, /agent/command, /agent/session/reset
+├─ config.py                   # настройки из env (токены, whitelist, таймауты)
+├─ Dockerfile
+├─ docker-compose.yml
 ├─ bot/
-│  ├─ main.py                  # основной запуск polling
-│  ├─ application.py           # build_application(), ConversationHandler и маршрутизация
-│  ├─ constants.py             # кнопки Telegram и ID состояний ConversationHandler
-│  ├─ keyboards.py             # inline-клавиатура обучалки
-│  ├─ logging_setup.py         # настройка консольного и файлового логирования
-│  ├─ runner.py                # BotRunner для программного старта/остановки (если нужно интегрировать)
+│  ├─ main.py                  # polling entrypoint
+│  ├─ application.py           # build_application(), ConversationHandler, маршрутизация
+│  ├─ constants.py             # кнопки обучалки и ID состояний
+│  ├─ keyboards.py             # inline-клавиатура /help
+│  ├─ logging_setup.py         # консоль + ротационный logs/bot.log
+│  ├─ runner.py                  # BotRunner для программного старта/остановки
 │  ├─ handlers/
-│  │  ├─ common.py             # /start, /menu, fallback, лог входящих апдейтов, post_init
-│  │  ├─ agent_command.py      # универсальная команда пользователя + загрузка вложений
-│  │  ├─ mappings.py           # add/update/delete/delete_aliases сценарии
-│  │  ├─ search.py             # поиск по аналогу и по STAL
-│  │  └─ ingest.py             # сценарий загрузки файла и отчет по ingest
+│  │  ├─ common.py             # /start, /help, fallback, post_init (set_my_commands), лог апдейтов
+│  │  ├─ agent_command.py      # текст и файлы → фоновый вызов /agent/command
+│  │  ├─ session.py            # /new → сброс сессии на backend
+│  │  └─ ingest.py             # предпросмотр ingest и генерация XLSX
 │  └─ services/
-│     ├─ context.py            # доступ к ApiClient из context.application.bot_data
-│     ├─ parsing.py            # parse_list(), unique_keep_order()
-│     ├─ text_formatters.py    # greeting и форматирование ответов
-│     └─ errors.py             # единый ответ пользователю при ApiError
+│     ├─ access.py             # whitelist по TELEGRAM_ALLOWED_USER_IDS
+│     ├─ context.py            # доступ к ApiClient из bot_data
+│     ├─ errors.py             # единый ответ при ApiError
+│     ├─ telegram_markup.py    # отправка форматированных сообщений
+│     ├─ telegram_retry.py     # retry при сбоях Telegram API
+│     ├─ text_formatters.py    # приветствие, help, форматирование ответов агента
+│     └─ parsing.py            # parse_list(), unique_keep_order()
 └─ logs/
-   └─ bot.log                  # ротационный файл логов
+   └─ bot.log
 ```
 
-## Как проходит запрос: от Telegram до API
+## Как проходит запрос
 
-1. `bot.py` передает управление в `bot/main.py`.
-2. `bot/main.py` поднимает логирование и создает приложение через `build_application()`.
-3. `bot/application.py`:
-   - создает `Application`,
-   - кладет `ApiClient` в `application.bot_data["api_client"]`,
-   - регистрирует `ConversationHandler` со всеми state-driven сценариями.
-4. Нужный хендлер в `bot/handlers/*`:
-   - валидирует ввод пользователя,
-   - вызывает методы `ApiClient` через `bot/services/context.py`,
-   - для произвольных agent-команд быстро подтверждает получение запроса и продолжает долгую обработку в фоне,
-   - формирует ответ и переводит пользователя в нужное состояние.
+1. `bot.py` передаёт управление в `bot/main.py`.
+2. `build_application()` создаёт `Application`, кладёт `ApiClient` в `bot_data`, регистрирует whitelist и `ConversationHandler`.
+3. Текст или файл попадает в `menu_agent_command`:
+   - бот сразу отвечает «Думаю...»;
+   - долгий вызов `ApiClient.command()` выполняется в фоне через `create_task`;
+   - результат форматируется и отправляется отдельным сообщением.
+4. Для ingest/deep extraction бот показывает предпросмотр (и XLSX при большом объёме); подтверждение и правки снова идут через `/agent/command`.
 
-## Навигация по хендлерам (куда идти с задачей)
+## Навигация по коду
 
-- Обучалка (inline-кнопки): `bot/constants.py`, `bot/keyboards.py`, `bot/services/text_formatters.py`
-- Добавить/изменить state и маршрутизацию: `bot/application.py`
-- Логика CRUD маппингов: `bot/handlers/mappings.py`
-- Поисковые сценарии: `bot/handlers/search.py`
-- Ingest и обработка загруженного файла: `bot/handlers/ingest.py`
-- NLP/agent-команды: `bot/handlers/agent_command.py` + `bot/services/text_formatters.py`
-- HTTP-контракты с backend API: `api_client.py`
+| Задача | Файл |
+| --- | --- |
+| Whitelist и отказ в доступе | `bot/services/access.py` |
+| Команды `/start`, `/help`, регистрация меню бота | `bot/handlers/common.py` |
+| Обработка текста и файлов | `bot/handlers/agent_command.py` |
+| Сброс сессии `/new` | `bot/handlers/session.py` |
+| Предпросмотр ingest и XLSX | `bot/handlers/ingest.py` |
+| Тексты обучалки | `bot/services/text_formatters.py`, `bot/keyboards.py` |
+| HTTP-контракт с backend | `api_client.py` |
+| Новое состояние или маршрут | `bot/application.py`, `bot/constants.py` |
 
-## Как добавить новую функцию без поломок
+## Как добавить новую функцию
 
-Рекомендуемый порядок:
+1. Если нужен новый endpoint — добавьте метод в `api_client.py`.
+2. Обработайте новый тип ответа в `agent_command.py` или `text_formatters.py`.
+3. При необходимости расширьте обучалку в `text_formatters.py` / `keyboards.py`.
+4. Проверьте поток вручную в Telegram.
 
-1. Добавить кнопку и/или новое состояние в `bot/constants.py`.
-2. Реализовать хендлер в соответствующем файле `bot/handlers/*` (или создать новый модуль по фиче).
-3. Подключить хендлер в `bot/application.py` (entry point/state/fallback).
-4. Если нужен новый API-вызов, добавить метод в `api_client.py`.
-5. Проверить пользовательский поток вручную в Telegram.
+Большинство пользовательских сценариев добавляются на стороне backend-агента; изменения в боте нужны, когда меняется формат ответа или UI (новый тип вложения, особое форматирование).
 
 ## Логи и диагностика
 
-- Логи пишутся и в консоль, и в `logs/bot.log`.
-- `bot/handlers/common.py` логирует входящие апдейты до обработки бизнес-хендлеров (группа `-1`).
-- Ошибки API для пользователя унифицированы через `bot/services/errors.py`.
+- Логи пишутся в консоль и в `logs/bot.log` (в Docker — volume `bot_logs`).
+- `bot/handlers/common.py` логирует входящие апдейты (группа `-1`).
+- Отказы whitelist логируются как `Доступ запрещён | user_id=...`.
+- Healthcheck контейнера проверяет `GET /health` backend API.
 
 ## Команды запуска и проверки
 
@@ -133,5 +170,5 @@ python bot.py
 Проверка синтаксиса:
 
 ```bash
-python -m compileall bot.py bot
+python -m compileall bot.py bot api_client.py config.py
 ```
